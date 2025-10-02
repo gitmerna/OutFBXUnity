@@ -1,4 +1,6 @@
 import bpy
+from bpy.props import StringProperty
+from bpy.types import Operator, Panel, PropertyGroup
 import os
 
 bl_info = {
@@ -10,6 +12,15 @@ bl_info = {
     "description": "Exports selected meshes and armatures as FBX compatible with Unity",
     "category": "3D View",
 }
+
+# プロパティを格納するクラス
+class FolderSelectProperties(PropertyGroup):
+    folder_path: StringProperty(
+        name="Folder Path",
+        description="Selected folder path",
+        default="",
+        subtype="DIR_PATH",
+    )
 
 LANG_OPTIONS = [
     ("JP", "JP", "日本語表示"),
@@ -36,6 +47,30 @@ def init_props():
         items=LANG_OPTIONS,
         default="JP"
     )
+    bpy.types.Scene.folder_select_props = bpy.props.PointerProperty(type=FolderSelectProperties)
+
+# フォルダ選択用オペレーター
+class OT_SelectFolder(Operator):
+    bl_idname = "wm.select_folder_example"
+    bl_label = "Select Folder"
+    bl_description = "Open file browser to select a folder"
+
+    directory: StringProperty(
+        name="Directory",
+        description="Path to selected directory",
+        subtype='DIR_PATH'
+    )
+
+    def invoke(self, context, event):
+        # フォルダ選択ダイアログを開く
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+    def execute(self, context):
+        props = context.scene.folder_select_props
+        props.folder_path = self.directory
+        self.report({'INFO'}, f"Selected Folder: {self.directory}")
+        return {'FINISHED'}
 
 def clear_props():
     del bpy.types.Scene.unity_fbx_filename
@@ -74,12 +109,21 @@ class UNITY_OT_ExportFBX(bpy.types.Operator):
 
     def execute(self, context):
         scene = context.scene
+        props = scene.folder_select_props
         filename = scene.unity_fbx_filename.strip()
         if not filename:
             self.report({'WARNING'}, "File name is empty")
             return {'CANCELLED'}
 
-        output_path = os.path.join(bpy.path.abspath("//"), filename + ".fbx")
+        # フォルダが未指定なら blendファイルのパスを使う
+        folder = props.folder_path.strip()
+        if not folder:
+            folder = bpy.path.abspath("//")
+
+        # 出力フルパス
+        # output_path = os.path.join(bpy.path.abspath("//"), filename + ".fbx")
+        output_path = os.path.join(bpy.path.abspath(folder), filename + ".fbx")
+
         bpy.ops.export_scene.fbx(
             filepath=output_path,
 #            use_selection=True,
@@ -135,6 +179,10 @@ class UNITY_PT_ExporterPanel(bpy.types.Panel):
         )
         row.label(text=label_text)
 
+        # フォルダパスとダイアログボタン
+        props = context.scene.folder_select_props
+        layout.prop(props, "folder_path", text="")
+
         # ファイル名入力とRボタン
         row = layout.row(align=True)
         row.scale_x = 1.5  # ラベルとボタンを同じ行に置く場合の横幅を拡大
@@ -146,11 +194,13 @@ class UNITY_PT_ExporterPanel(bpy.types.Panel):
         layout.operator("unity.export_fbx", icon='EXPORT')
 
 
+# 登録処理
 classes = [
     UNITY_OT_ExportFBX,
     UNITY_OT_ToggleLang,
     UNITY_OT_ResetFileName,
     UNITY_PT_ExporterPanel,
+    FolderSelectProperties,
 ]
 
 def register():
