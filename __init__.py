@@ -128,7 +128,7 @@ class UNITY_OT_ExportFBX(bpy.types.Operator):
             filepath=output_path,
 #            use_selection=True,
             use_visible=True,
-            object_types={'ARMATURE', 'MESH'},
+            object_types={'ARMATURE', 'MESH', 'EMPTY'},
             apply_unit_scale=True,
             apply_scale_options='FBX_SCALE_UNITS',
             global_scale=1.0,  # Custom Scale を使う場合に変更
